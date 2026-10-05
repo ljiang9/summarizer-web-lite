@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>summarizer-web-lite · 提取式摘要</title>
+<style>
+  body { font-family:-apple-system,"PingFang SC",sans-serif; background:#f5f6f8; margin:0; padding:24px; color:#1f2329; }
+  h1 { font-size:20px; }
+  textarea { width:100%; height:120px; padding:10px; border:1px solid #ccc; border-radius:8px; font-size:14px; }
+  .row { display:flex; gap:12px; align-items:center; margin:10px 0; }
+  button { background:#2f6fed; color:#fff; border:none; border-radius:8px; padding:9px 18px; cursor:pointer; }
+  #out { background:#fff; border:1px solid #e2e5ea; border-radius:10px; padding:12px; margin-top:10px; font-size:14px; line-height:1.8; }
+</style>
+</head>
+<body>
+  <h1>提取式摘要</h1>
+  <textarea id="src" placeholder="粘贴正文…"></textarea>
+  <div class="row">
+    <label>摘要比例 <input type="range" id="ratio" min="10" max="80" value="30"> <span id="rv">30%</span></label>
+    <button onclick="run()">生成摘要</button>
+  </div>
+  <div id="out"></div>
+
+<!-- SUM_LOGIC_BEGIN -->
+<script>
+// ===== 纯函数：提取式摘要（Node 断言）=====
+function splitSentences(text) {
+  return text.split(/(?<=[。！？!?\n])/).map(s => s.trim()).filter(Boolean);
+}
+
+function wordFreq(sentences) {
+  const freq = {};
+  for (const s of sentences) {
+    const words = s.toLowerCase().match(/[a-z0-9]+|[一-鿿]/g) || [];
+    for (const w of words) freq[w] = (freq[w] || 0) + 1;
+  }
+  return freq;
+}
+
+function scoreSentence(sent, freq) {
+  const words = sent.toLowerCase().match(/[a-z0-9]+|[一-鿿]/g) || [];
+  if (!words.length) return 0;
+  return words.reduce((a, w) => a + (freq[w] || 0), 0) / words.length;
+}
+
+function summarize(text, ratio = 0.3) {
+  const sents = splitSentences(text);
+  if (sents.length <= 1) return text.trim();
+  const freq = wordFreq(sents);
+  const scored = sents.map((s, i) => ({ s, i, score: scoreSentence(s, freq) }));
+  const k = Math.max(1, Math.round(sents.length * ratio));
+  const top = [...scored].sort((a, b) => b.score - a.score).slice(0, k);
+  top.sort((a, b) => a.i - b.i); // 按原文顺序
+  return top.map(x => x.s).join("");
+}
+// ===== SUM_LOGIC_END =====
+
+document.getElementById("ratio").addEventListener("input", e => {
+  document.getElementById("rv").textContent = e.target.value + "%";
+});
+
+function run() {
+  const text = document.getElementById("src").value;
+  const ratio = document.getElementById("ratio").value / 100;
+  document.getElementById("out").textContent = summarize(text, ratio);
+}
+</script>
+</body>
+</html>
